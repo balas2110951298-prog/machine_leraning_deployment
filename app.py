@@ -1,10 +1,12 @@
+
 from flask import Flask, request, jsonify
 import pickle
 import numpy as np
+import os
 
 app = Flask(__name__)
 
-# Load the model and scaler when starting the server
+# Load model and scaler
 with open('logistic_regression_model.pkl', 'rb') as model_file:
     model = pickle.load(model_file)
 
@@ -12,23 +14,32 @@ with open('scaler.pkl', 'rb') as scaler_file:
     scaler = pickle.load(scaler_file)
 
 
+# Home endpoint
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        'message': 'Diabetes Prediction API is running!',
+        'prediction_endpoint': '/predict'
+    })
+
+
+# Prediction endpoint
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Get JSON data from the request
         data = request.get_json(force=True)
 
-        # Expecting a list of features corresponding to the dataset columns:
-        # [Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age]
         features = data['features']
 
-        # Convert to numpy array and reshape for a single prediction
-        features_arr = np.array(features).reshape(1, -1)
+        if len(features) != 8:
+            return jsonify({
+                'error': 'Please provide exactly 8 features'
+            }), 400
 
-        # Standardize the input features
+        features_arr = np.array(features, dtype=float).reshape(1, -1)
+
         scaled_features = scaler.transform(features_arr)
 
-        # Run prediction
         prediction = model.predict(scaled_features)[0]
         probability = model.predict_proba(scaled_features)[0][1]
 
@@ -42,7 +53,6 @@ def predict():
 
 
 if __name__ == '__main__':
-    import os
     app.run(
         host='0.0.0.0',
         port=int(os.environ.get('PORT', 10000)),
